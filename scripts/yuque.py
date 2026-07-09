@@ -408,6 +408,56 @@ class YuqueClient:
         )
         return result.get("data", [])
 
+    def get_toc(self, book_id: int, referer: str) -> list[dict[str, Any]]:
+        result = self._request("GET", f"/api/books/{book_id}/toc", referer=referer)
+        data = result.get("data", {})
+        toc = data.get("toc", []) if isinstance(data, dict) else []
+        return toc if isinstance(toc, list) else []
+
+    def find_toc_node(self, book_id: int, referer: str, *, doc_slug: str | None = None, doc_url: str | None = None) -> dict[str, Any] | None:
+        if doc_url:
+            _, parts = parse_yuque_url(doc_url.split("#")[0])
+            doc_slug = parts[2] if len(parts) >= 3 else None
+        if not doc_slug:
+            return None
+        for item in self.get_toc(book_id, referer):
+            if item.get("url") == doc_slug or str(item.get("doc_id")) == doc_slug:
+                return item
+        return None
+
+    def try_place_in_toc(
+        self,
+        book_id: int,
+        doc_id: int,
+        *,
+        after_uuid: str,
+        referer: str,
+        action_mode: str = "sibling",
+    ) -> tuple[bool, str]:
+        """Best-effort TOC placement. Enterprise deployments often return 404."""
+        payload = {
+            "action": "appendNode",
+            "action_mode": action_mode,
+            "target_uuid": after_uuid,
+            "type": "DOC",
+            "doc_id": doc_id,
+        }
+        try:
+            self._request("PUT", f"/api/books/{book_id}/toc", referer=referer, body=payload)
+            node = next((n for n in self.get_toc(book_id, referer) if n.get("doc_id") == doc_id), None)
+            if node and node.get("parent_uuid"):
+                return True, "已自动挂载到目录"
+            return False, "目录 API 不可用，文档已创建但未出现在目标目录"
+        except SystemExit as e:
+            msg = str(e)
+            if "404" in msg:
+                return False, "企业版语雀不支持目录自动挂载 API（PUT /toc 返回 404）"
+            raise
+        except AuthError:
+            raise
+        except Exception as e:
+            return False, f"目录挂载失败: {e}"
+
     def search_docs(
         self,
         query: str,
@@ -539,7 +589,58 @@ def cmd_create(args: argparse.Namespace) -> None:
     body = markdown_to_lake(raw) if args.markdown or args.file.endswith(".md") else raw
     created = client.create_doc(book["book_id"], args.title, body, book["page_url"])
     url = f"{client.base_url}/{book['group_login']}/{book['book_slug']}/{created['slug']}"
-    print(json.dumps({"title": created["title"], "url": url, "doc_id": created["id"]}, ensure_ascii=False, indent=2))
+
+    result: dict[str, Any] = {
+        "title": created["title"],
+        "url": url,
+        "doc_id": created["id"],
+        "book_name": book["book_name"],
+        "toc_placed": False,
+        "toc_message": None,
+        "manual_toc_hint": None,
+    }
+
+    if args.after_url:
+        ref = client.resolve_doc(args.after_url.split("#")[0])
+        if ref["book_id"] != book["book_id"]:
+            raise SystemExit("参考文档与目标知识库不一致")
+        node = client.find_toc_node(book["book_id"], book["page_url"], doc_slug=ref["doc_slug"])
+        if not node:
+            result["toc_message"] = f"未在目录中找到参考文档「{ref['title']}」"
+        else:
+            placed, msg = client.try_place_in_toc(
+                book["book_id"], created["id"], after_uuid=node["uuid"], referer=book["page_url"]
+            )
+            result["toc_placed"] = placed
+            result["toc_message"] = msg
+            parent_uuid = node.get("parent_uuid")
+            if parent_uuid:
+                toc = client.get_toc(book["book_id"], book["page_url"])
+                parent = next((n for n in toc if n.get("uuid") == parent_uuid), None)
+                parent_title = parent.get("title") if parent else "目标目录"
+            else:
+                parent_title = "知识库根目录"
+            if not placed:
+                result["manual_toc_hint"] = (
+                    f"请在语雀侧边栏打开「{parent_title}」，将新文档「{created['title']}」"
+                    f"拖到「{ref['title']}」同级位置。文档链接：{url}"
+                )
+
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+
+def cmd_toc(args: argparse.Namespace) -> None:
+    client = get_client()
+    book = client.resolve_book(args.book_url)
+    toc = client.get_toc(book["book_id"], book["page_url"])
+    if args.format == "json":
+        print(json.dumps(toc, ensure_ascii=False, indent=2))
+        return
+    for item in toc:
+        indent = "  " * max(0, int(item.get("level", 0)))
+        slug = item.get("url", "")
+        title = item.get("title", "")
+        print(f"{indent}- {title} ({slug})")
 
 
 def cmd_books(args: argparse.Namespace) -> None:
@@ -605,7 +706,13 @@ def main() -> None:
     p_create.add_argument("--title", required=True)
     p_create.add_argument("--file", required=True)
     p_create.add_argument("--markdown", action="store_true")
+    p_create.add_argument("--after-url", help="参考文档 URL，新建文档与其平级（同目录下）")
     p_create.set_defaults(func=cmd_create)
+
+    p_toc = sub.add_parser("toc", help="List book TOC")
+    p_toc.add_argument("--book-url", required=True)
+    p_toc.add_argument("--format", choices=["text", "json"], default="text")
+    p_toc.set_defaults(func=cmd_toc)
 
     p_books = sub.add_parser("books", help="List books in a group")
     p_books.add_argument("--group", help="Group login, e.g. tech-ozd0u")

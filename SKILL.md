@@ -7,16 +7,25 @@ description: >-
 license: MIT
 metadata:
   author: zeroanonx
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Yuque Docs
 
-通过 Cookie 认证，读写语雀私有文档。所有操作通过本 skill 内置脚本完成。
+通过 Cookie 认证，读写语雀私有文档。**所有操作只能**通过本 skill 内置脚本 `scripts/yuque.py` 完成。
 
 **脚本路径**：`scripts/yuque.py`（相对于本 skill 根目录）
 
 **Cookie 路径**：`credentials/cookie.txt`（相对于本 skill 根目录）
+
+---
+
+## 硬约束（违反即停止）
+
+1. **只能**调用 `scripts/yuque.py`，禁止自行写 Python/curl 穷举 API
+2. **禁止**拉取外部仓库（如 yuque-mcp、GitHub raw）替代本 skill
+3. **禁止**反复尝试 TOC/目录相关接口；目录挂载**最多尝试 1 次**（脚本内置）
+4. Cookie 过期必须先走 Phase 0，不得带着无效 Cookie 重试
 
 ---
 
@@ -25,12 +34,10 @@ metadata:
 ```text
 Phase 0   检查 Cookie 是否有效
             └─ 无效/过期 → 提示用户粘贴 → AI 更新 credentials/cookie.txt → 重试
-Phase 1   解析用户意图（读 / 写 / 搜 / 新建 / 改标题）
-Phase 2   执行 scripts/yuque.py 子命令
-Phase 3   向用户返回结果（摘要、链接、确认信息）
+Phase 1   解析用户意图（读 / 写 / 搜 / 新建 / 改标题 / 指定目录新建）
+Phase 2   执行 scripts/yuque.py 子命令（一次到位，不穷举）
+Phase 3   向用户返回结果（摘要、链接、目录挂载说明）
 ```
-
-**硬约束：Cookie 过期时不得反复重试，必须先完成 Phase 0 更新 Cookie。**
 
 ---
 
@@ -43,18 +50,10 @@ python3 scripts/yuque.py cookie --check
 ```
 
 - 返回 `{"ok": true}` → 继续
-- `credentials/cookie.txt` 不存在 → 进入 **0.2 首次配置**
-- 返回 `auth_error` 或 exit code `2` → 进入 **0.2 Cookie 过期/缺失**
+- `credentials/cookie.txt` 不存在 → 进入 **0.2**
+- 返回 `auth_error` 或 exit code `2` → 进入 **0.2**
 
-也可根据以下特征判断需要用户提供 Cookie：
-
-- 输出含 `401` / `Unauthorized` / `Cookie 未配置` / `Cookie 可能已过期`
-- `read` / `info` 无法解析页面
-- `cookie --check` 的 `ok` 为 `false`
-
-### 0.2 首次使用或 Cookie 过期 — 提示用户粘贴
-
-向用户说明（首次与过期用同一套话术）：
+### 0.2 提示用户粘贴 Cookie
 
 ```text
 需要语雀 Cookie 才能继续。请按以下步骤获取，并直接粘贴到聊天框发给我：
@@ -67,31 +66,17 @@ python3 scripts/yuque.py cookie --check
 我会自动保存并继续你的操作。
 ```
 
-**禁止**要求用户自行执行命令行或手动编辑文件；新用户应在聊天框粘贴 Cookie。
+**禁止**要求用户自行执行命令行或手动编辑文件。
 
-### 0.3 AI 更新 Cookie（硬约束）
+### 0.3 AI 更新 Cookie
 
-用户粘贴 Cookie 后，**AI 必须立即写入**：
-
-```text
-credentials/cookie.txt
-```
-
-写入方式：
+用户粘贴后，立即执行：
 
 ```bash
 python3 scripts/yuque.py cookie --set '用户粘贴的完整Cookie'
 ```
 
-或直接编辑 `credentials/cookie.txt`（单行，不含 `Cookie:` 前缀）。
-
-写入后再次执行 `cookie --check` 确认 `ok: true`，**然后重试原操作**。
-
-### 安全
-
-- 禁止将 Cookie 写入项目代码或其他 skill
-- 禁止在回复中完整回显 Cookie
-- `credentials/cookie.txt` 已在 `.gitignore` 中
+再 `cookie --check` 确认后重试原操作。
 
 ---
 
@@ -102,16 +87,26 @@ python3 scripts/yuque.py cookie --set '用户粘贴的完整Cookie'
 | 读文档 / 总结 / 正文写了什么 | `read` |
 | 写/更新正文（Markdown） | `write` |
 | 只改标题 | `title` |
-| 新建文档 | `create` |
+| 新建文档（知识库根级） | `create` |
+| **指定目录 / 与某文档平级新建** | `create --after-url` |
+| 查看知识库目录结构 | `toc` |
 | 搜索知识库 | `search` |
 | 列出知识库 | `books` |
 | 查 doc_id / book_id | `info` |
 
+### 解析「在某目录下平级新建」
+
+用户说：「在 A 目录下，与 B 文档平级新建」
+
+- **A**：父级目录文档 URL（如 `.../fvtnv7ucbpwsn2yb`，忽略 `#锚点`）
+- **B**：参考文档 URL（如 `.../vdwc2om3snx6otuh`）
+- 执行时用 `--after-url B`，脚本会自动尝试挂到 B 的同级
+
+**不要**自行解析 TOC uuid，**不要**穷举 `PUT /toc` 变体。
+
 ---
 
 ## Phase 2 — 命令参考
-
-在 skill 根目录执行（或写绝对路径）：
 
 ```bash
 CLI="python3 scripts/yuque.py"
@@ -121,22 +116,14 @@ CLI="python3 scripts/yuque.py"
 
 ```bash
 $CLI read "<文档URL>"
-$CLI read "<文档URL>" --format json      # 含原始 lake HTML
-$CLI read "<文档URL>" --format markdown  # 纯 Markdown 风格文本
+$CLI read "<文档URL>" --format json
 ```
 
-### 写 Markdown 正文（已有文档）
-
-1. 将 Markdown 写入临时文件，如 `/tmp/yuque-edit.md`
-2. 执行：
+### 写 Markdown 正文
 
 ```bash
-$CLI write "<文档URL>" --file /tmp/yuque-edit.md --markdown
-# 同时改标题
-$CLI write "<文档URL>" --file /tmp/yuque-edit.md --markdown --title "新标题"
+$CLI write "<文档URL>" --file /tmp/edit.md --markdown
 ```
-
-`.md` 文件会自动按 Markdown 转换；复杂表格/代码块已支持基础转换。
 
 ### 改标题
 
@@ -144,54 +131,76 @@ $CLI write "<文档URL>" --file /tmp/yuque-edit.md --markdown --title "新标题
 $CLI title "<文档URL>" "新标题"
 ```
 
-### 新建文档
+### 新建文档（根级）
 
 ```bash
 $CLI create \
-  --book-url "https://fshows.yuque.com/tech-ozd0u/il2goo" \
+  --book-url "https://fshows.yuque.com/utr6gw/xldmve" \
   --title "文档标题" \
   --file /tmp/new-doc.md \
   --markdown
 ```
 
-返回 JSON 含新文档 `url`。
-
-### 搜索知识库
+### 新建文档（与参考文档平级）
 
 ```bash
-# 在整个团队下所有知识库搜索（默认 tech-ozd0u）
-$CLI search "补贴"
-
-# 指定团队
-$CLI search "前端" --group tech-ozd0u
-
-# 只在某个知识库内搜索
-$CLI search "插件" --book-url "https://fshows.yuque.com/tech-ozd0u/il2goo"
+$CLI create \
+  --book-url "https://fshows.yuque.com/utr6gw/xldmve" \
+  --title "AI Harness 介绍" \
+  --file /tmp/new-doc.md \
+  --markdown \
+  --after-url "https://fshows.yuque.com/utr6gw/xldmve/vdwc2om3snx6otuh"
 ```
 
-### 列出知识库
+返回 JSON 字段：
+
+| 字段 | 含义 |
+|------|------|
+| `toc_placed` | 是否自动挂到目录（企业版通常为 `false`） |
+| `toc_message` | 目录挂载结果说明 |
+| `manual_toc_hint` | 需用户手动拖目录时的操作指引 |
+| `url` | 新文档链接 |
+
+### 查看目录结构
 
 ```bash
+$CLI toc --book-url "https://fshows.yuque.com/utr6gw/xldmve"
+```
+
+### 搜索 / 列出知识库
+
+```bash
+$CLI search "关键词" --book-url "<知识库URL>"
 $CLI books --group tech-ozd0u
-```
-
-### 解析文档元信息
-
-```bash
-$CLI info "<文档URL>"
 ```
 
 ---
 
 ## Phase 3 — 回复用户
 
-完成后告知：
+### 新建文档成功但目录未自动挂载（常见）
 
-- 操作类型（读/写/新建/搜索）
-- 文档标题与 URL
-- 读操作：给出结构化摘要，而非全文堆砌
-- 写操作：确认已更新，附文档链接
-- 新建：附新文档链接
+企业版 `fshows.yuque.com` **不支持**目录 API 自动挂载。按以下模板回复：
+
+```text
+文档已创建：
+- 标题：{title}
+- 链接：{url}
+
+目录未能自动挂载（企业版限制）。请手动操作：
+1. 打开知识库侧边栏
+2. 找到「{父目录名}」
+3. 将「{新标题}」拖到「{参考文档}」同级位置
+
+{manual_toc_hint}
+```
+
+**不要**继续尝试其他 API，**不要**说「正在穷举接口」。
+
+### 其他操作
+
+- 读：结构化摘要 + 链接
+- 写/改标题：确认已更新 + 链接
 
 ---
 
@@ -199,28 +208,10 @@ $CLI info "<文档URL>"
 
 ```text
 1. cookie --check
-2. read 原文（了解现有结构；全新文档可跳过）
-3. 在对话或临时 .md 文件中准备 Markdown 内容
+2. read 原文（可选）
+3. 准备 Markdown 写入临时 .md 文件
 4. write --file xxx.md --markdown
-5. read 验证（可选）
-6. 向用户确认结果
-```
-
-**覆盖整篇正文时**：先用 `read` 确认不会误删重要图片/画板；图片在正文中会变为 `[[image:...]]` 占位符，重写会丢失原图。
-
-**局部修改时**：读出全文 → 在 Markdown 中改对应段落 → `write` 整篇回去。
-
----
-
-## 配置
-
-`credentials/config.json`：
-
-```json
-{
-  "base_url": "https://fshows.yuque.com",
-  "default_group": "tech-ozd0u"
-}
+5. 向用户确认结果
 ```
 
 ---
@@ -230,9 +221,8 @@ $CLI info "<文档URL>"
 | 现象 | 处理 |
 |------|------|
 | exit code 2 / auth_error | Phase 0 更新 Cookie |
-| 浏览器版本过低 | 必须用脚本（内置 Chrome UA），禁止裸 curl |
-| 搜索结果为空 | 换关键词；或指定 `--book-url` |
-| 写入后格式异常 | 检查 Markdown 表格/列表语法；必要时 `read --format json` 对比 |
+| `toc_placed: false` | 正常，告知用户手动拖目录 |
+| 搜索结果为空 | 换关键词或指定 `--book-url` |
 
 ## API 参考
 
