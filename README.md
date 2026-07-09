@@ -6,15 +6,29 @@
 
 ---
 
+## 安装
+
+```bash
+npx skills add https://github.com/zeroanonx/yuque-docs --skill yuque-docs
+```
+
+```bash
+npx skills add zeroanonx/yuque-docs --skill yuque-docs
+```
+
+安装后重新开启 Agent 会话。
+
+---
+
 ## 能做什么
 
-| 能力 | 说明 |
-|------|------|
-| 读文档 | 读取正文，总结内容或回答问题 |
+| 能力        | 说明                               |
+| ----------- | ---------------------------------- |
+| 读文档      | 读取正文，总结内容或回答问题       |
 | 写 Markdown | 用 Markdown 写正文，自动同步到语雀 |
-| 改标题 | 修改文档标题 |
-| 新建文档 | 在指定知识库下创建新文档 |
-| 搜索知识库 | 按关键词搜索文档标题和描述 |
+| 改标题      | 修改文档标题                       |
+| 新建文档    | 在指定知识库下创建新文档           |
+| 搜索知识库  | 按关键词搜索文档标题和描述         |
 
 ---
 
@@ -61,11 +75,11 @@
 
 ## 如何获取 Cookie
 
-1. 浏览器打开 [https://fshows.yuque.com](https://fshows.yuque.com) 并登录
+1. 浏览器打开语雀并登录（如 [https://fshows.yuque.com](https://fshows.yuque.com)）
 2. 按 `F12` 打开开发者工具
 3. 切换到 **「网络 / Network」** 面板
 4. 刷新页面
-5. 点击任意一条发往 `fshows.yuque.com` 的请求
+5. 点击任意一条发往语雀域名的请求（如 `fshows.yuque.com`）
 6. 右侧 **「标头 / Headers」** → **「请求标头 / Request Headers」**
 7. 找到 **`Cookie`**，复制整段值（从 `lang=zh-cn` 到末尾，**不要带 `Cookie:` 前缀**）
 8. 粘贴到 Cursor 聊天框发给 AI
