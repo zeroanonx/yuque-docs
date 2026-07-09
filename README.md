@@ -1,8 +1,10 @@
 # yuque-docs
 
-让 AI 通过 Cookie 读写语雀私有文档的 Cursor Skill。
+让 AI 通过 Cookie **读取和查找**语雀私有文档的 Cursor Skill。
 
-把语雀链接丢给 AI，它可以帮你操作私有文档，无需手动登录后台。
+> **强烈不建议用本 skill 写文档**（新建、改标题、写正文等）。企业版语雀目录 API 不可用，写入容易丢格式/图片，且无法可靠挂到指定目录。请只在语雀网页端编辑，本 skill 仅用于**读**和**搜**。
+
+仓库：[github.com/zeroanonx/yuque-docs](https://github.com/zeroanonx/yuque-docs)
 
 ---
 
@@ -20,16 +22,22 @@ npx skills add zeroanonx/yuque-docs --skill yuque-docs
 
 ---
 
-## 能做什么
+## 能做什么（推荐）
 
 | 能力 | 说明 |
 |------|------|
 | 读文档 | 读取正文，总结内容或回答问题 |
-| 写 Markdown | 用 Markdown 写正文，自动同步到语雀 |
-| 改标题 | 修改文档标题 |
-| 新建文档 | 在指定知识库下创建新文档 |
-| 指定目录新建 | 与某篇文档平级新建（企业版需手动拖目录） |
 | 搜索知识库 | 按关键词搜索文档标题和描述 |
+| 列出知识库 | 查看团队下有哪些知识库 |
+| 查看目录 | 查看知识库的文档目录结构 |
+
+## 不建议做什么
+
+| 能力 | 说明 |
+|------|------|
+| 写 Markdown 正文 | 易丢图片/画板，请在语雀网页端编辑 |
+| 新建文档 | 企业版无法自动挂目录，请手动创建 |
+| 改标题 | 请在语雀网页端修改 |
 
 ---
 
@@ -37,46 +45,44 @@ npx skills add zeroanonx/yuque-docs --skill yuque-docs
 
 ### 第一次使用
 
-1. 在 Cursor 对话里直接说你想做的事，例如：
+1. 在 Cursor 对话里说：
 
 ```text
-用 yuque-docs skill，读一下这个文档：https://fshows.yuque.com/...
+/yuque-docs，读一下这个文档：https://fshows.yuque.com/...
 ```
 
 2. AI 发现还没有 Cookie，会提示你获取并**粘贴到聊天框**
 3. 你把 Cookie 发给它，AI 会自动保存并继续执行
 
-**不需要自己跑命令行，也不需要手动编辑文件。**
-
-### 日常使用
-
-直接在对话里说即可：
+### 日常使用（推荐）
 
 ```text
-用 yuque-docs skill，读一下这个文档：https://fshows.yuque.com/...
+/yuque-docs，读一下这个文档：https://fshows.yuque.com/...
 ```
 
 ```text
-用 yuque-docs skill，把这篇文档标题改成「前端技术文档」
+/yuque-docs，这篇文档正文写了什么：https://fshows.yuque.com/...
 ```
 
 ```text
-用 yuque-docs skill，在本地生活知识库新建一篇文档，标题是 xxx，内容是 ...
+/yuque-docs，搜索一下知识库里有没有「vpn」相关的文档
 ```
 
 ```text
-用 yuque-docs skill，在研发团队知识库「卢文斌」目录下，与 yuque-docs 平级新建一篇 AI Harness 介绍
+/yuque-docs，列出研发团队知识库的目录结构
 ```
+
+### 若要求写文档
+
+请明确拒绝，并建议用户去语雀网页端操作：
 
 ```text
-用 yuque-docs skill，搜索一下知识库里有没有「补贴」相关的文档
+本 skill 仅用于读取和查找，不支持新建或写入。请在语雀中手动编辑。
 ```
-
-> 企业版语雀暂不支持目录自动挂载。新建后若未出现在目标目录，AI 会给出手动拖动指引。
 
 ### Cookie 过期时
 
-和操作失败时一样：**把新 Cookie 粘贴到聊天框发给 AI**，它会自动更新并继续。
+**把新 Cookie 粘贴到聊天框发给 AI**，它会自动更新并继续。
 
 ---
 
@@ -97,5 +103,5 @@ Cookie 会过期，过期后按同样步骤重新获取并粘贴即可。
 
 ## 注意
 
-- Cookie 是登录凭证，只粘贴给 AI 用于操作你的文档，不要公开分享
-- 覆盖写入正文时，原文档中的图片和画板可能会丢失，改动前可以让 AI 先读一遍原文
+- Cookie 是登录凭证，只粘贴给 AI 用于读取文档，不要公开分享
+- **只读、只搜**——写文档请用语雀网页端
