@@ -4,8 +4,6 @@
 
 > **强烈不建议用本 skill 写文档**（新建、改标题、写正文等）。企业版语雀目录 API 不可用，写入容易丢格式/图片，且无法可靠挂到指定目录。请只在语雀网页端编辑，本 skill 仅用于**读**和**搜**。
 
-仓库：[github.com/zeroanonx/yuque-docs](https://github.com/zeroanonx/yuque-docs)
-
 ---
 
 ## 安装
@@ -17,6 +15,19 @@ npx skills add https://github.com/zeroanonx/yuque-docs --skill yuque-docs
 ```bash
 npx skills add zeroanonx/yuque-docs --skill yuque-docs
 ```
+
+## 推荐使用 zero-tui安装
+
+[zero-tui](https://npmx.dev/package/zero-tui)
+
+```bash
+zero-tui -> skills add  -> [关键字] zeroanonx/yuque-docs
+```
+
+## 使用前必读
+
+1. **Cookie 是登录凭证，只粘贴给 AI 用于读取文档，不要公开分享**
+2. **只读、只搜**——写文档请用语雀网页端
 
 安装后重新开启 Agent 会话。
 
@@ -66,10 +77,6 @@ npx skills add zeroanonx/yuque-docs --skill yuque-docs
 
 ```text
 /yuque-docs，搜索一下知识库里有没有「vpn」相关的文档
-```
-
-```text
-/yuque-docs，列出研发团队知识库的目录结构
 ```
 
 ### 若要求写文档
